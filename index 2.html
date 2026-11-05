@@ -1,0 +1,1083 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Font Pairing Tool</title>
+
+  <!-- Inter for the tool's own UI. Body fonts are loaded by JavaScript only when a card needs them. -->
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+
+  <style>
+    /* ---------- Colour + size variables (like Figma styles) ---------- */
+    :root {
+      --bg: #F2F0EB;
+      --surface: #FFFFFF;
+      --ink: #141416;
+      --muted: #74747A;
+      --line: #E4E2DD;
+      --star: #E8A317;
+
+      /* Sizes for the preview cards.
+         In step 4 the sliders will change these 3 values live. */
+      /* Title. --title-font is set by JavaScript when you pick or upload a font. */
+      --title-font: Georgia, serif;
+      --title-size: 40px;
+      --title-leading: 1.1;
+      --title-tracking: -0.01em;
+      /* Body */
+      --body-size: 17px;
+      --body-leading: 1.6;
+      --body-tracking: 0em;
+    }
+
+    * { box-sizing: border-box; }   /* * = every element */
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: "Inter", sans-serif;
+      font-size: 14px;
+    }
+
+    /* ---------- Shared pieces ---------- */
+    .screen {
+      max-width: 1200px;
+      margin: 0 auto;            /* centre the screen horizontally */
+      padding: 48px 24px;
+    }
+
+    /* NEW in step 4: hide every screen, then show only the one marked "active".
+       JavaScript moves the "active" class from screen to screen. */
+    .screen { display: none; }
+    .screen.active { display: block; }
+
+    .step-label {
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin: 0 0 8px;
+    }
+
+    h1 { font-size: 32px; font-weight: 600; letter-spacing: -0.02em; margin: 0 0 32px; }
+
+    /* A centred white panel used by screens 1 and 2 */
+    .panel {
+      max-width: 560px;
+      margin: 0 auto;
+      background: var(--surface);
+      border-radius: 20px;
+      padding: 40px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    label { font-size: 12px; font-weight: 500; color: var(--muted); margin-top: 16px; }
+
+    input[type="text"], input[type="search"], textarea {
+      font: inherit;
+      padding: 12px 14px;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      resize: vertical;
+      width: 100%;
+    }
+    input:focus, textarea:focus { outline: none; border-color: var(--ink); }
+
+    /* Buttons: primary (black) and secondary (outline) */
+    .btn {
+      font: inherit;
+      font-weight: 500;
+      padding: 12px 20px;
+      border-radius: 10px;
+      border: 1px solid var(--ink);
+      cursor: pointer;
+      text-decoration: none;     /* for <a> tags styled as buttons */
+      display: inline-block;
+      text-align: center;
+    }
+    .btn-primary   { background: var(--ink); color: white; }
+    .btn-secondary { background: transparent; color: var(--ink); }
+    .btn-primary:hover { opacity: 0.85; }
+    .btn-secondary:hover { background: var(--line); }
+
+    .actions { display: flex; gap: 12px; justify-content: flex-end; margin-top: 24px; }
+
+    /* Segmented control (used for alignment and All/Favourites) */
+    .segmented {
+      display: inline-flex;
+      gap: 4px;
+      background: var(--line);
+      padding: 4px;
+      border-radius: 10px;
+    }
+    .segmented button {
+      font: inherit;
+      font-size: 13px;
+      padding: 7px 14px;
+      border: none;
+      border-radius: 7px;
+      background: transparent;
+      cursor: pointer;
+    }
+    .segmented button.active { background: var(--surface); box-shadow: 0 1px 2px rgba(0,0,0,0.08); }
+
+    /* ---------- Screen 2: title font ---------- */
+    .divider {
+      display: flex; align-items: center; gap: 12px;
+      color: var(--muted); font-size: 12px; margin: 16px 0 0;
+    }
+    .divider::before, .divider::after { content: ""; flex: 1; height: 1px; background: var(--line); }
+
+    .upload-box {
+      border: 1.5px dashed var(--line);
+      border-radius: 12px;
+      padding: 20px;
+      text-align: center;
+      color: var(--muted);
+    }
+
+    /* search field + "Use font" button side by side */
+    .search-row { display: flex; gap: 8px; }
+    .search-row input { flex: 1; }
+    .search-row .btn { padding: 10px 16px; }
+
+    /* little status line under the search / upload: "Loading…", errors */
+    .status { font-size: 12px; color: var(--muted); margin: 4px 0 0; min-height: 16px; }
+    .status.error { color: #C2410C; }
+
+    /* ----- Preview: EMPTY state (before a font is chosen) ----- */
+    .font-preview {
+      margin-top: 24px;
+      padding: 28px 24px;
+      border-radius: 12px;
+      border: 1.5px dashed var(--line);
+      text-align: center;
+      color: var(--muted);
+    }
+    .preview-icon { font-family: Georgia, serif; font-size: 28px; margin: 0 0 6px; color: var(--line); }
+    .preview-hint { margin: 0; line-height: 1.5; }
+    .preview-filled { display: none; }       /* hidden until a font is chosen */
+
+    /* ----- Preview: FILLED state (class "has-font" added by JavaScript) ----- */
+    .font-preview.has-font {
+      border-style: solid;
+      background: var(--bg);
+      text-align: left;
+      color: var(--ink);
+    }
+    .font-preview.has-font .preview-empty  { display: none; }
+    .font-preview.has-font .preview-filled { display: block; }
+
+    .preview-bar {
+      display: flex; align-items: center; justify-content: space-between; gap: 8px;
+      font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em;
+    }
+    .preview-bar button {
+      font: inherit; text-transform: none; letter-spacing: 0;
+      background: none; border: none; color: var(--muted); cursor: pointer; text-decoration: underline;
+    }
+    .preview-title {
+      font-family: var(--title-font);
+      font-size: 32px;
+      line-height: 1.15;
+      margin: 12px 0 16px;
+    }
+    /* Question on top, explanation below it, then the Serif / Sans-serif choice */
+    .category-row {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 4px;
+      padding-top: 16px;
+      border-top: 1px solid var(--line);
+    }
+    .category-question { margin: 0; font-size: 13px; font-weight: 600; color: var(--ink); }
+    .category-why { margin: 0 0 8px; font-size: 12px; line-height: 1.5; color: var(--muted); }
+    .category-row .segmented button.active { background: var(--ink); color: white; }
+
+    /* Disabled button: greyed out and not clickable */
+    .btn:disabled { opacity: 0.35; cursor: not-allowed; }
+    .actions-hint { text-align: right; font-size: 12px; color: var(--muted); margin: 6px 0 0; }
+
+    /* "Use sample text" — a quiet text link, left-aligned under the body box */
+    .sample-link {
+      align-self: flex-start;
+      font: inherit;
+      font-size: 12px;
+      color: var(--muted);
+      background: none;
+      border: none;
+      padding: 0;
+      margin-top: 4px;
+      cursor: pointer;
+      text-decoration: underline;
+    }
+    .sample-link:hover { color: var(--ink); }
+
+    /* ---------- Screen 3: results ---------- */
+    .toolbar {
+      display: flex;
+      flex-wrap: wrap;           /* = wrap in auto layout */
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+    .toolbar .spacer { flex: 1; } /* invisible "fill" item that pushes things apart */
+
+    .toolbar-label { font-size: 12px; color: var(--muted); }
+
+    /* "Text style" panel: everything that changes how text LOOKS */
+    .text-style {
+      background: var(--surface);
+      border-radius: 14px;
+      padding: 16px 20px 20px;
+      margin-bottom: 24px;
+    }
+    .text-style summary {
+      cursor: pointer;
+      font-weight: 600;
+      font-size: 13px;
+    }
+    .text-style-controls {
+      display: grid;
+      /* alignment column + 3 slider columns; wraps on small screens */
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 20px;
+      align-items: end;
+      margin-top: 16px;
+    }
+    .control {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--muted);
+      margin: 0;
+    }
+    /* the alignment buttons inside the panel use a lighter look */
+    .text-style .segmented { background: var(--bg); }
+    .text-style .segmented button { flex: 1; }
+    input[type="range"] { accent-color: var(--ink); width: 100%; }
+
+    /* label on the left, value on the right: "Size        17px" */
+    .control-head { display: flex; justify-content: space-between; }
+    .control-head output { color: var(--ink); font-variant-numeric: tabular-nums; }
+
+    .reset-link {
+      font: inherit;
+      font-size: 12px;
+      color: var(--muted);
+      background: none;
+      border: none;
+      padding: 0;
+      margin-top: 16px;
+      cursor: pointer;
+      text-decoration: underline;
+    }
+    .reset-link:hover { color: var(--ink); }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+      gap: 20px;
+    }
+
+    .card {
+      background: var(--surface);
+      border-radius: 16px;
+      padding: 28px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+    .card.favourite { outline: 2px solid var(--star); }  /* highlight favourites */
+
+    .card-meta { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+    .font-name { font-weight: 600; margin: 0; }
+    .font-note { color: var(--muted); font-size: 12px; margin: 4px 0 0; line-height: 1.4; }
+
+    .card-title {
+      font-family: var(--title-font);
+      font-size: var(--title-size);
+      line-height: var(--title-leading);
+      letter-spacing: var(--title-tracking);
+      font-weight: 500;
+      margin: 0;
+    }
+    .card-body {
+      font-size: var(--body-size);
+      line-height: var(--body-leading);
+      letter-spacing: var(--body-tracking);
+      color: #333338;
+      margin: 0;
+    }
+
+    .card-actions { display: flex; gap: 8px; margin-top: auto; }  /* margin-top:auto pushes buttons to the bottom */
+    .card-actions .btn { padding: 8px 12px; font-size: 13px; }
+
+    /* Alignment: a class on the grid controls every card at once */
+    .grid.align-left   .card-title, .grid.align-left   .card-body { text-align: left; }
+    .grid.align-center .card-title, .grid.align-center .card-body { text-align: center; }
+    .grid.align-right  .card-title, .grid.align-right  .card-body { text-align: right; }
+
+    .more { display: flex; justify-content: center; margin-top: 32px; }
+
+    /* Small "category" tag on each card: Sans / Serif */
+    .tag {
+      font-size: 11px;
+      color: var(--muted);
+      border: 1px solid var(--line);
+      border-radius: 999px;       /* pill shape */
+      padding: 2px 8px;
+      white-space: nowrap;
+    }
+
+    .notice {
+      text-align: center;
+      color: var(--muted);
+      margin-top: 24px;
+    }
+    .notice:empty { display: none; }   /* hide when there's no message */
+    .notice .btn { margin-top: 12px; }
+  </style>
+</head>
+<body>
+
+  <!-- ===================== SCREEN 1: YOUR TEXT ===================== -->
+  <section class="screen" id="screen-text">
+    <div class="panel">
+      <p class="step-label">Step 1 of 2</p>
+      <h1>Find a body font for your title</h1>
+
+      <!-- Boxes start EMPTY. The placeholder is the grey hint shown until you type. -->
+      <label for="titleInput">Title text</label>
+      <input id="titleInput" type="text" placeholder="Type or paste your title here">
+
+      <label for="bodyInput">Body text</label>
+      <textarea id="bodyInput" rows="5" placeholder="Type or paste a paragraph of body text here"></textarea>
+
+      <button class="sample-link" id="sampleBtn">No text handy? Use sample text</button>
+
+      <div class="actions">
+        <button class="btn btn-primary" id="nextBtn" disabled>Next</button>
+      </div>
+      <p class="actions-hint" id="nextHint">Add a title and body text to continue</p>
+    </div>
+  </section>
+
+  <!-- ===================== SCREEN 2: TITLE FONT ===================== -->
+  <section class="screen" id="screen-font">
+    <div class="panel">
+      <p class="step-label">Step 2 of 2</p>
+      <h1>What’s your title font?</h1>
+
+      <label for="fontSearch">Pick from Google Fonts</label>
+      <div class="search-row">
+        <!-- list="fontList" connects this field to the suggestions <datalist> below -->
+        <input id="fontSearch" type="search" list="fontList" placeholder="Type a font name, e.g. Playfair Display" autocomplete="off">
+        <button class="btn btn-secondary" id="useFontBtn">Use font</button>
+      </div>
+      <!-- Suggestions that drop down as you type. JavaScript fills this in. -->
+      <datalist id="fontList"></datalist>
+      <p class="status" id="searchStatus"></p>
+
+      <p class="divider">or</p>
+
+      <label for="fontUpload">Upload your own font</label>
+      <div class="upload-box">
+        <!-- accept = which file types are allowed -->
+        <input id="fontUpload" type="file" accept=".otf,.ttf,.woff,.woff2">
+        <p>.otf, .ttf, .woff or .woff2 — stays on your computer</p>
+      </div>
+      <p class="status" id="uploadStatus"></p>
+
+      <!-- PREVIEW: has two states. JavaScript adds the class "has-font" to switch. -->
+      <div class="font-preview" id="fontPreview">
+        <div class="preview-empty">
+          <p class="preview-icon">Aa</p>
+          <p class="preview-hint">Your title will preview here<br>Search or upload a font above</p>
+        </div>
+        <div class="preview-filled">
+          <div class="preview-bar">
+            <span>Preview · <span id="previewFontName"></span></span>
+            <button id="changeFontBtn">✕ Change</button>
+          </div>
+          <p class="preview-title" id="previewTitle"></p>
+          <!-- The pairing rule needs to know this. Pre-selected by the system,
+               phrased as a question so people know they can change it. -->
+          <div class="category-row">
+            <p class="category-question">Is this a serif or sans-serif font?</p>
+            <p class="category-why">We’ve pre-selected our best guess. We use this to pick contrasting body fonts — change it if it’s wrong.</p>
+            <div class="segmented" id="categoryToggle">
+              <button data-category="serif">Serif</button>
+              <button data-category="sans">Sans-serif</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="actions">
+        <button class="btn btn-secondary" id="backBtn">Back</button>
+        <button class="btn btn-primary" id="generateBtn" disabled>Generate pairings</button>
+      </div>
+      <p class="actions-hint" id="generateHint">Choose a title font first</p>
+    </div>
+  </section>
+
+  <!-- ===================== SCREEN 3: RESULTS ===================== -->
+  <section class="screen" id="screen-results">
+
+    <div class="toolbar">
+      <button class="btn btn-secondary" id="editBtn">← Edit text &amp; font</button>
+      <span class="spacer"></span>
+
+      <!-- FILTER: which cards you see -->
+      <span class="toolbar-label">Show</span>
+      <div class="segmented" id="viewToggle">
+        <button data-view="all" class="active">All</button>
+        <button data-view="favourites">Favourites only</button>
+      </div>
+    </div>
+
+    <!-- TEXT STYLE: how the text looks. <details open> = collapsible, starts open -->
+    <details class="text-style" open>
+      <summary>Text style</summary>
+      <div class="text-style-controls">
+
+        <div class="control">
+          Alignment
+          <div class="segmented" id="alignToggle">
+            <button data-align="left" class="active">Left</button>
+            <button data-align="center">Centre</button>
+            <button data-align="right">Right</button>
+          </div>
+        </div>
+
+        <!-- WHICH text the sliders edit. Starts on Body (the main task). -->
+        <div class="control">
+          Editing
+          <div class="segmented" id="targetToggle">
+            <button data-target="title">Title</button>
+            <button data-target="body" class="active">Body</button>
+          </div>
+        </div>
+
+        <!-- The same 3 sliders edit whichever text is selected above.
+             <output> shows the current value next to the label. -->
+        <label class="control">
+          <span class="control-head">Size <output id="sizeValue"></output></span>
+          <input type="range" id="sizeSlider">
+        </label>
+        <label class="control">
+          <span class="control-head">Line height <output id="leadingValue"></output></span>
+          <input type="range" id="leadingSlider">
+        </label>
+        <label class="control">
+          <span class="control-head">Letter spacing <output id="trackingValue"></output></span>
+          <input type="range" id="trackingSlider">
+        </label>
+
+      </div>
+      <button class="reset-link" id="resetBtn">Reset to defaults</button>
+    </details>
+
+    <!-- The grid starts EMPTY. JavaScript builds the cards (step 5). -->
+    <div class="grid align-left" id="cardGrid"></div>
+
+    <!-- Messages like "No favourites yet" appear here -->
+    <div class="notice" id="notice"></div>
+
+    <div class="more">
+      <button class="btn btn-primary" id="moreBtn">Generate more options</button>
+    </div>
+  </section>
+
+  <!-- ===================== JAVASCRIPT (new in step 4) =====================
+       JavaScript = the prototype panel. Pattern:
+         1. FIND an element      →  document.getElementById("nextBtn")
+         2. LISTEN for an event  →  .addEventListener("click", ...)
+         3. DO something         →  change a class, text or style
+  -->
+  <script>
+
+    // ---------- 1. FIND the elements we need (like naming layers) ----------
+    const screens      = document.querySelectorAll(".screen");   // all 3 screens
+    const titleInput   = document.getElementById("titleInput");
+    const bodyInput    = document.getElementById("bodyInput");
+    const fontPreview  = document.getElementById("fontPreview");
+    const cardGrid     = document.getElementById("cardGrid");
+    const alignButtons = document.querySelectorAll("#alignToggle button");
+
+
+    // ---------- 2. MOVING BETWEEN SCREENS ----------
+    // A "function" is a reusable set of steps, like a component.
+    function showScreen(screenId) {
+      // remove "active" from every screen…
+      screens.forEach(screen => screen.classList.remove("active"));
+      // …then add it to the one we want
+      document.getElementById(screenId).classList.add("active");
+      window.scrollTo(0, 0);   // jump to the top of the page
+    }
+
+    // Start on screen 1
+    showScreen("screen-text");
+
+    document.getElementById("nextBtn").addEventListener("click", () => {
+      updateText();                 // copy the typed text everywhere
+      showScreen("screen-font");
+    });
+
+    document.getElementById("backBtn").addEventListener("click", () => {
+      showScreen("screen-text");
+    });
+
+    document.getElementById("generateBtn").addEventListener("click", () => {
+      // Generate new pairings only if the title font (or its category) changed
+      // since last time. Coming back from "Edit" with the same font keeps the cards.
+      const key = titleFont.family + "|" + titleCategory;
+      if (key !== lastGeneratedFor) {
+        seen = new Set(favourites);   // forget what was shown, keep favourites
+        generate();
+        lastGeneratedFor = key;
+      }
+      showScreen("screen-results");
+    });
+
+    document.getElementById("editBtn").addEventListener("click", () => {
+      showScreen("screen-text");
+    });
+
+
+    // ---------- 3. PUT THE TYPED TEXT ON EVERY CARD ----------
+    function updateText() {
+      // .value = what's typed in a field
+      const title = titleInput.value;
+      const body  = bodyInput.value;
+
+      document.getElementById("previewTitle").textContent = title;   // screen 2 preview
+
+      // every card title and body on screen 3
+      document.querySelectorAll(".card-title").forEach(el => el.textContent = title);
+      document.querySelectorAll(".card-body").forEach(el => el.textContent = body);
+    }
+
+    // "input" fires on every keystroke, so cards update while you type
+    titleInput.addEventListener("input", updateText);
+    bodyInput.addEventListener("input", updateText);
+
+    // Next is only clickable when BOTH boxes have text.
+    // .trim() removes spaces, so a box with only spaces still counts as empty.
+    const nextBtn  = document.getElementById("nextBtn");
+    const nextHint = document.getElementById("nextHint");
+    function checkReady() {
+      const ready = titleInput.value.trim() !== "" && bodyInput.value.trim() !== "";
+      nextBtn.disabled = !ready;
+      nextHint.style.display = ready ? "none" : "block";
+    }
+    titleInput.addEventListener("input", checkReady);
+    bodyInput.addEventListener("input", checkReady);
+
+    // "Use sample text" fills both boxes with a neutral example
+    document.getElementById("sampleBtn").addEventListener("click", () => {
+      titleInput.value = "Design that feels effortless";
+      bodyInput.value = "Good typography is almost invisible. It guides the reader through ideas without asking for attention, letting the words do the work while the letterforms quietly set the mood of the page.";
+      updateText();
+      checkReady();
+    });
+
+
+    // ---------- 4. ALIGNMENT BUTTONS ----------
+    alignButtons.forEach(button => {
+      button.addEventListener("click", () => {
+        // data-align="center"  →  button.dataset.align is "center"
+        const align = button.dataset.align;
+
+        // swap the class on the grid: align-left / align-center / align-right
+        cardGrid.classList.remove("align-left", "align-center", "align-right");
+        cardGrid.classList.add("align-" + align);
+
+        // highlight the clicked button only
+        alignButtons.forEach(b => b.classList.remove("active"));
+        button.classList.add("active");
+      });
+    });
+
+
+    // ---------- 5. TEXT STYLE: Title / Body switch + 3 shared sliders ----------
+    const root = document.documentElement;   // = the :root in our CSS
+
+    // SETTINGS: an "object" = a little box of named values.
+    // Each text type remembers its own values, plus its slider limits.
+    // (Letter spacing is stored in %, like Figma: -1 means -1%.)
+    const DEFAULTS = {
+      title: { size: 40, leading: 1.1, tracking: -1 },
+      body:  { size: 17, leading: 1.6, tracking: 0 },
+    };
+    const LIMITS = {
+      title: { size: [24, 96, 1], leading: [0.8, 1.6, 0.05], tracking: [-5, 5, 0.5] },
+      body:  { size: [12, 28, 1], leading: [1.2, 2.2, 0.05], tracking: [-3, 10, 0.5] },
+    };
+    // a COPY of the defaults that the sliders will change
+    let settings = structuredClone(DEFAULTS);
+    let target = "body";   // which text the sliders are editing right now
+
+    const sizeSlider     = document.getElementById("sizeSlider");
+    const leadingSlider  = document.getElementById("leadingSlider");
+    const trackingSlider = document.getElementById("trackingSlider");
+    const targetButtons  = document.querySelectorAll("#targetToggle button");
+
+    // Push the stored values into the CSS variables, so the cards update
+    function applyStyles() {
+      for (const type of ["title", "body"]) {
+        const s = settings[type];
+        root.style.setProperty(`--${type}-size`, s.size + "px");
+        root.style.setProperty(`--${type}-leading`, s.leading);
+        root.style.setProperty(`--${type}-tracking`, s.tracking / 100 + "em"); // % → em
+      }
+    }
+
+    // Set one slider's min/max/step and current value
+    function setupSlider(slider, [min, max, step], value) {
+      slider.min = min; slider.max = max; slider.step = step; slider.value = value;
+    }
+
+    // Make the sliders show the values of whichever text is selected
+    function loadSliders() {
+      const s = settings[target], lim = LIMITS[target];
+      setupSlider(sizeSlider, lim.size, s.size);
+      setupSlider(leadingSlider, lim.leading, s.leading);
+      setupSlider(trackingSlider, lim.tracking, s.tracking);
+      showValues();
+    }
+
+    // Write the numbers next to each label, e.g. "17px", "1.60", "0%"
+    function showValues() {
+      const s = settings[target];
+      document.getElementById("sizeValue").textContent = s.size + "px";
+      document.getElementById("leadingValue").textContent = Number(s.leading).toFixed(2);
+      document.getElementById("trackingValue").textContent = s.tracking + "%";
+    }
+
+    // Title / Body switch
+    targetButtons.forEach(button => {
+      button.addEventListener("click", () => {
+        target = button.dataset.target;      // "title" or "body"
+        targetButtons.forEach(b => b.classList.remove("active"));
+        button.classList.add("active");
+        loadSliders();                       // sliders jump to that text's values
+      });
+    });
+
+    // When a slider moves: save the value for the current target, then update
+    sizeSlider.addEventListener("input", () => {
+      settings[target].size = Number(sizeSlider.value);
+      applyStyles(); showValues();
+    });
+    leadingSlider.addEventListener("input", () => {
+      settings[target].leading = Number(leadingSlider.value);
+      applyStyles(); showValues();
+    });
+    trackingSlider.addEventListener("input", () => {
+      settings[target].tracking = Number(trackingSlider.value);
+      applyStyles(); showValues();
+    });
+
+    // Reset everything (title AND body) back to the defaults
+    document.getElementById("resetBtn").addEventListener("click", () => {
+      settings = structuredClone(DEFAULTS);
+      applyStyles(); loadSliders();
+    });
+
+    // ---------- 6. THE FONT LIST (new in step 5) ----------
+    // An "array" = a list. Each item is an object describing one Google Font.
+    // This list is the tool's "knowledge". In step 7 an AI can replace it.
+    const FONTS = [
+      // --- Sans-serif ---
+      { name: "Instrument Sans",   category: "sans",  note: "Editorial and slightly condensed; lets a high-contrast serif shine." },
+      { name: "DM Sans",           category: "sans",  note: "Soft geometric shapes calm down a sharp, dramatic title." },
+      { name: "Manrope",           category: "sans",  note: "Modern and slightly techy; suits SaaS and product work." },
+      { name: "Figtree",           category: "sans",  note: "Clean and warm; effortless to read at small sizes." },
+      { name: "Hanken Grotesk",    category: "sans",  note: "Neutral grotesk with subtle warmth; lets the title lead." },
+      { name: "Geist",             category: "sans",  note: "Crisp and precise; a sharp, contemporary contrast." },
+      { name: "Work Sans",         category: "sans",  note: "Slightly wide with personality; friendly and open." },
+      { name: "Albert Sans",       category: "sans",  note: "Scandinavian geometric feel; minimal and elegant." },
+      { name: "Inter",             category: "sans",  note: "The safe, ultra-readable choice; never gets in the way." },
+      { name: "Plus Jakarta Sans", category: "sans",  note: "Polished and slightly playful; feels premium." },
+      { name: "IBM Plex Sans",     category: "sans",  note: "Engineered character; pairs a classic serif with rigour." },
+      { name: "Outfit",            category: "sans",  note: "Round geometric shapes; soft and approachable." },
+      { name: "Onest",             category: "sans",  note: "Simple and open; very comfortable for long reading." },
+      { name: "Schibsted Grotesk", category: "sans",  note: "Newspaper-grotesk roots; confident and editorial." },
+      { name: "Public Sans",       category: "sans",  note: "Strong, neutral, trustworthy; plain in a good way." },
+      { name: "Karla",             category: "sans",  note: "Quirky grotesque details; adds character quietly." },
+      { name: "Nunito Sans",       category: "sans",  note: "Gentle and warm; balances a cold, sharp serif." },
+      { name: "Mulish",            category: "sans",  note: "Minimal and light; airy paragraphs." },
+      { name: "Lexend",            category: "sans",  note: "Designed for readability; wide and very clear." },
+      { name: "Space Grotesk",     category: "sans",  note: "Techy quirks; bold, unexpected contrast." },
+      { name: "Sora",              category: "sans",  note: "Futuristic geometric; feels digital-first." },
+      { name: "Urbanist",          category: "sans",  note: "Clean geometric with modern proportions." },
+      { name: "Be Vietnam Pro",    category: "sans",  note: "Neo-grotesk with a friendly rhythm." },
+      { name: "Red Hat Text",      category: "sans",  note: "Built for body text; sturdy and legible." },
+      { name: "Source Sans 3",     category: "sans",  note: "Humanist classic; calm and professional." },
+      { name: "Libre Franklin",    category: "sans",  note: "American gothic tradition; classic editorial pair." },
+      { name: "Archivo",           category: "sans",  note: "Grotesque with a slightly compressed, newsy feel." },
+      { name: "Epilogue",          category: "sans",  note: "Distinctive yet readable; adds a designerly touch." },
+      { name: "Jost",              category: "sans",  note: "Futura-inspired geometric; stylish and clean." },
+      { name: "Rubik",             category: "sans",  note: "Slightly rounded corners; soft, modern and friendly." },
+      // --- Serif ---
+      { name: "Newsreader",        category: "serif", note: "Bookish and editorial; a confident serif-on-serif pair." },
+      { name: "Source Serif 4",    category: "serif", note: "Calm transitional serif; very readable." },
+      { name: "Lora",              category: "serif", note: "Brushed curves; warm and literary." },
+      { name: "Literata",          category: "serif", note: "Made for long reading on screens." },
+      { name: "Crimson Pro",       category: "serif", note: "Classic old-style; elegant and quiet." },
+      { name: "EB Garamond",       category: "serif", note: "Timeless Garamond; refined, a little formal." },
+      { name: "Libre Baskerville", category: "serif", note: "Sturdy Baskerville built for screens." },
+      { name: "Spectral",          category: "serif", note: "Light and sharp; a screen-first serif." },
+      { name: "Alegreya",          category: "serif", note: "Calligraphic rhythm; lively and characterful." },
+      { name: "PT Serif",          category: "serif", note: "Practical and sturdy; clear at small sizes." },
+      { name: "Gelasio",           category: "serif", note: "Georgia-like comfort with more polish." },
+      { name: "Petrona",           category: "serif", note: "Contemporary serif with a crisp, modern edge." },
+    ];
+
+    // The title font's category ("serif" or "sans"). Set on screen 2 (step 6).
+    let titleCategory = "serif";
+
+
+    // ---------- 7. STATE: what the tool is remembering ----------
+    let favourites = [];        // font names, in the order they were starred
+    let current = [];           // font names shown right now (not starred)
+    let seen = new Set();       // every font already shown (a Set = list without duplicates)
+    let view = "all";           // "all" or "favourites"
+    let ranOut = false;         // true when the list has no new fonts left
+
+    const notice   = document.getElementById("notice");
+    const moreBtn  = document.getElementById("moreBtn");
+    const moreArea = document.querySelector(".more");
+
+    // Find a font's info by its name
+    function getFont(name) {
+      return FONTS.find(f => f.name === name);
+    }
+
+    // Shuffle a list randomly (so each round feels fresh)
+    function shuffle(list) {
+      const copy = [...list];
+      for (let i = copy.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [copy[i], copy[j]] = [copy[j], copy[i]];
+      }
+      return copy;
+    }
+
+
+    // ---------- 8. PICKING 6 FONTS (the "smart" part) ----------
+    // Contrast rule: a serif title gets mostly sans bodies (5 + 1 serif),
+    // a sans title gets mostly serif bodies (4 + 2 sans).
+    function pickFonts(count) {
+      const available = FONTS.filter(f => !seen.has(f.name) && !favourites.includes(f.name));
+      const sans  = shuffle(available.filter(f => f.category === "sans"));
+      const serif = shuffle(available.filter(f => f.category === "serif"));
+
+      let picks;
+      if (titleCategory === "serif") {
+        picks = [...sans.slice(0, count - 1), ...serif.slice(0, 1)];
+      } else {
+        picks = [...serif.slice(0, count - 2), ...sans.slice(0, 2)];
+      }
+      // if one group ran out, top up from whatever is left
+      const leftovers = shuffle(available.filter(f => !picks.includes(f)));
+      picks = [...picks, ...leftovers].slice(0, count);
+
+      picks.forEach(f => seen.add(f.name));
+      return picks.map(f => f.name);
+    }
+
+    // Replace the non-favourite cards with a fresh batch
+    function generate() {
+      current = pickFonts(6);
+      ranOut = current.length < 6;   // fewer than 6 left = we've reached the end
+      render();
+    }
+
+    // Start over: forget what's been seen (favourites stay)
+    function startOver() {
+      seen = new Set(favourites);
+      generate();
+    }
+
+
+    // ---------- 9. LOADING A GOOGLE FONT ONLY WHEN NEEDED ----------
+    const loadedFonts = new Set();
+    function loadFont(name) {
+      if (loadedFonts.has(name)) return;           // already loaded → skip
+      const link = document.createElement("link"); // make a new <link> tag…
+      link.rel = "stylesheet";
+      link.href = "https://fonts.googleapis.com/css2?family=" + name.replaceAll(" ", "+") + "&display=swap";
+      document.head.appendChild(link);             // …and add it to the page
+      loadedFonts.add(name);
+    }
+
+
+    // ---------- 10. BUILDING ONE CARD ----------
+    function makeCard(name) {
+      const font = getFont(name);
+      const isFav = favourites.includes(name);
+      loadFont(name);
+
+      const card = document.createElement("article");
+      card.className = "card" + (isFav ? " favourite" : "");
+
+      // innerHTML = write HTML as text. The `backticks` let us put ${values} inside.
+      card.innerHTML = `
+        <div class="card-meta">
+          <div>
+            <p class="font-name">${font.name}</p>
+            <p class="font-note">${font.note}</p>
+          </div>
+          <span class="tag">${font.category === "sans" ? "Sans" : "Serif"}</span>
+        </div>
+        <h2 class="card-title"></h2>
+        <p class="card-body"></p>
+        <div class="card-actions">
+          <button class="btn ${isFav ? "btn-primary" : "btn-secondary"} fav-btn">
+            ${isFav ? "★ Favourited" : "☆ Favourite"}
+          </button>
+          <a class="btn btn-secondary" target="_blank"
+             href="https://fonts.google.com/specimen/${font.name.replaceAll(" ", "+")}">Download font ↗</a>
+        </div>`;
+
+      // The user's own text goes in with textContent (safe: shows exactly what they typed)
+      card.querySelector(".card-title").textContent = titleInput.value;
+      const body = card.querySelector(".card-body");
+      body.textContent = bodyInput.value;
+      body.style.fontFamily = `"${font.name}", sans-serif`;
+
+      card.querySelector(".fav-btn").addEventListener("click", () => toggleFavourite(name));
+      return card;
+    }
+
+
+    // ---------- 11. FAVOURITES ----------
+    function toggleFavourite(name) {
+      if (favourites.includes(name)) {
+        // un-star: remove from favourites, put it back at the start of the normal cards
+        favourites = favourites.filter(n => n !== name);
+        current = [name, ...current];
+      } else {
+        // star: add to the END of favourites (so they stay in starred order)
+        favourites.push(name);
+        current = current.filter(n => n !== name);
+      }
+      render();
+    }
+
+
+    // ---------- 12. DRAWING THE GRID ----------
+    // render() rebuilds the grid from the state. Whenever something changes,
+    // we update the state and call render(). One source of truth.
+    function render() {
+      cardGrid.innerHTML = "";   // clear the grid
+      notice.innerHTML = "";
+
+      const names = view === "favourites" ? favourites : [...favourites, ...current];
+      names.forEach(name => cardGrid.appendChild(makeCard(name)));
+
+      // "Generate more" only makes sense in the All view
+      moreArea.style.display = view === "all" ? "flex" : "none";
+
+      if (view === "favourites" && favourites.length === 0) {
+        notice.textContent = "No favourites yet. Star a card to shortlist it.";
+      } else if (view === "all" && ranOut) {
+        // the list has run out
+        notice.innerHTML = `You've seen all ${FONTS.length} suggestions.<br>
+          <button class="btn btn-secondary" id="startOverBtn">Start over (keeps favourites)</button>`;
+        document.getElementById("startOverBtn").addEventListener("click", startOver);
+      }
+    }
+
+    moreBtn.addEventListener("click", generate);
+
+    // All / Favourites only
+    const viewButtons = document.querySelectorAll("#viewToggle button");
+    viewButtons.forEach(button => {
+      button.addEventListener("click", () => {
+        view = button.dataset.view;
+        viewButtons.forEach(b => b.classList.remove("active"));
+        button.classList.add("active");
+        render();
+      });
+    });
+
+
+    // ---------- 13. CHOOSING THE TITLE FONT (new in step 6) ----------
+
+    // Popular TITLE fonts on Google Fonts, for the search suggestions.
+    // (Body fonts from the FONTS list are suggested too.)
+    const TITLE_FONTS = [
+      ["Playfair Display","serif"], ["DM Serif Display","serif"], ["Instrument Serif","serif"],
+      ["Fraunces","serif"], ["Cormorant Garamond","serif"], ["Cormorant","serif"],
+      ["Bodoni Moda","serif"], ["Libre Caslon Display","serif"], ["Prata","serif"],
+      ["Abril Fatface","serif"], ["Yeseva One","serif"], ["Young Serif","serif"],
+      ["Gloock","serif"], ["Italiana","serif"], ["Marcellus","serif"], ["Cinzel","serif"],
+      ["Rozha One","serif"], ["Gilda Display","serif"], ["DM Serif Text","serif"],
+      ["Merriweather","serif"], ["Noto Serif Display","serif"],
+      ["Bricolage Grotesque","sans"], ["Syne","sans"], ["Unbounded","sans"],
+      ["Archivo Black","sans"], ["Anton","sans"], ["Bebas Neue","sans"], ["Oswald","sans"],
+      ["Poppins","sans"], ["Montserrat","sans"], ["Raleway","sans"], ["Inter Tight","sans"],
+      ["Familjen Grotesk","sans"],
+    ].map(([name, category]) => ({ name, category }));
+
+    // Every font we know the category of: title fonts + body fonts
+    const KNOWN_FONTS = [...TITLE_FONTS, ...FONTS];
+
+    const fontSearch    = document.getElementById("fontSearch");
+    const fontUpload    = document.getElementById("fontUpload");
+    const searchStatus  = document.getElementById("searchStatus");
+    const uploadStatus  = document.getElementById("uploadStatus");
+    const generateBtn   = document.getElementById("generateBtn");
+    const generateHint  = document.getElementById("generateHint");
+    const categoryBtns  = document.querySelectorAll("#categoryToggle button");
+
+    let titleFont = { family: "", label: "" };  // the chosen font ("" = none yet)
+    let lastGeneratedFor = "";                  // which font the current cards were made for
+    let uploadCount = 0;
+
+    // Fill the search suggestions (<datalist>) — sorted A to Z, no duplicates
+    const allNames = [...new Set(KNOWN_FONTS.map(f => f.name))].sort();
+    document.getElementById("fontList").innerHTML =
+      allNames.map(name => `<option value="${name}"></option>`).join("");
+
+    // Show a message under the search or upload. type "error" makes it orange.
+    function setStatus(el, message, type) {
+      el.textContent = message;
+      el.classList.toggle("error", type === "error");
+    }
+
+    // Serif / Sans-serif switch in the preview
+    function setCategory(category) {
+      titleCategory = category;
+      categoryBtns.forEach(b => b.classList.toggle("active", b.dataset.category === category));
+    }
+    categoryBtns.forEach(b => b.addEventListener("click", () => setCategory(b.dataset.category)));
+
+    // A font is ready → switch the preview to its FILLED state, unlock Generate
+    function setTitleFont(family, label, category) {
+      titleFont = { family, label };
+      root.style.setProperty("--title-font", `"${family}", Georgia, serif`);
+      document.getElementById("previewFontName").textContent = label;
+      fontPreview.classList.add("has-font");
+      setCategory(category);
+      generateBtn.disabled = false;
+      generateHint.style.display = "none";
+    }
+
+    // "✕ Change" → back to the EMPTY state, lock Generate again
+    function clearTitleFont() {
+      titleFont = { family: "", label: "" };
+      fontPreview.classList.remove("has-font");
+      generateBtn.disabled = true;
+      generateHint.style.display = "block";
+      fontSearch.value = "";
+      fontUpload.value = "";
+      setStatus(searchStatus, ""); setStatus(uploadStatus, "");
+      fontSearch.focus();
+    }
+    document.getElementById("changeFontBtn").addEventListener("click", clearTitleFont);
+
+
+    // --- Option A: a Google Font by name ---
+    // "async" functions can WAIT for slow things (like downloading a font)
+    // using "await", instead of freezing the page.
+    async function useGoogleFont() {
+      const typed = fontSearch.value.trim();
+      if (!typed) { setStatus(searchStatus, "Type a font name first.", "error"); return; }
+
+      // match a known font even if the capitals are different ("playfair display")
+      const known = KNOWN_FONTS.find(f => f.name.toLowerCase() === typed.toLowerCase());
+      const name = known ? known.name : typed;
+
+      setStatus(searchStatus, "Loading " + name + "…");
+
+      // Ask Google for the font. onload = it exists, onerror = it doesn't.
+      const link = document.createElement("link");
+      link.rel = "stylesheet";
+      link.href = "https://fonts.googleapis.com/css2?family=" + name.replaceAll(" ", "+") + "&display=swap";
+      const found = await new Promise(resolve => {
+        link.onload  = () => resolve(true);
+        link.onerror = () => resolve(false);
+        document.head.appendChild(link);
+      });
+      // Wait until the font file itself has downloaded
+      const faces = found ? await document.fonts.load(`32px "${name}"`) : [];
+
+      if (faces.length === 0) {
+        link.remove();
+        setStatus(searchStatus, `Couldn't find “${name}” on Google Fonts. Check the spelling.`, "error");
+        return;
+      }
+
+      loadedFonts.add(name);   // so the card builder doesn't load it twice
+      fontUpload.value = ""; setStatus(uploadStatus, "");
+      if (known) {
+        setStatus(searchStatus, "");
+        setTitleFont(name, name, known.category);
+      } else {
+        setStatus(searchStatus, "Loaded.");
+        setTitleFont(name, name, "serif");
+      }
+    }
+
+    document.getElementById("useFontBtn").addEventListener("click", useGoogleFont);
+    fontSearch.addEventListener("keydown", e => { if (e.key === "Enter") useGoogleFont(); });
+    // Picking a suggestion from the dropdown uses it straight away
+    fontSearch.addEventListener("input", () => {
+      if (allNames.includes(fontSearch.value)) useGoogleFont();
+    });
+
+
+    // --- Option B: upload a font file ---
+    fontUpload.addEventListener("change", async () => {
+      const file = fontUpload.files[0];
+      if (!file) return;
+      if (file.size > 15 * 1024 * 1024) {
+        setStatus(uploadStatus, "That file is over 15 MB. Try a .woff2 or .otf version.", "error");
+        return;
+      }
+      setStatus(uploadStatus, "Loading " + file.name + "…");
+
+      try {
+        // Read the file inside the browser (nothing is uploaded anywhere)
+        const data = await file.arrayBuffer();
+        uploadCount++;
+        const family = "UploadedFont" + uploadCount;   // a private internal name
+        const face = new FontFace(family, data);
+        await face.load();
+        document.fonts.add(face);
+
+        // A readable name from the file name: "PPHatton-Medium.otf" → "PPHatton Medium"
+        const label = file.name.replace(/\.(otf|ttf|woff2?)$/i, "").replace(/[-_]+/g, " ");
+        // Guess the category from the name; the user can correct it
+        const guess = /sans|grotesk|grotesque|gothic|mono/i.test(label) ? "sans" : "serif";
+
+        fontSearch.value = ""; setStatus(searchStatus, "");
+        setStatus(uploadStatus, "Loaded.");
+        setTitleFont(family, label, guess);
+      } catch (err) {
+        setStatus(uploadStatus, "That file couldn't be read as a font. Try another file.", "error");
+      }
+    });
+
+
+    // Run once at the start so everything matches
+    applyStyles();
+    loadSliders();
+    updateText();   // fill the screen 2 preview title
+
+  </script>
+</body>
+</html>
