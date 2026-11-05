@@ -204,6 +204,21 @@
     .btn:disabled { opacity: 0.35; cursor: not-allowed; }
     .actions-hint { text-align: right; font-size: 12px; color: var(--muted); margin: 6px 0 0; }
 
+    /* "Use sample text" — a quiet text link, left-aligned under the body box */
+    .sample-link {
+      align-self: flex-start;
+      font: inherit;
+      font-size: 12px;
+      color: var(--muted);
+      background: none;
+      border: none;
+      padding: 0;
+      margin-top: 4px;
+      cursor: pointer;
+      text-decoration: underline;
+    }
+    .sample-link:hover { color: var(--ink); }
+
     /* ---------- Screen 3: results ---------- */
     .toolbar {
       display: flex;
@@ -340,16 +355,19 @@
       <p class="step-label">Step 1 of 2</p>
       <h1>Find a body font for your title</h1>
 
+      <!-- Boxes start EMPTY. The placeholder is the grey hint shown until you type. -->
       <label for="titleInput">Title text</label>
-      <input id="titleInput" type="text" placeholder="Paste your title…"
-             value="Turning ideas into thoughtful experiences">
+      <input id="titleInput" type="text" placeholder="Type or paste your title here">
 
       <label for="bodyInput">Body text</label>
-      <textarea id="bodyInput" rows="5" placeholder="Paste a paragraph of body text…">I’m a product designer with a background in communication design, with experience in SaaS and mobile products, also the recipient of National gold at India Skills 2025-26 in Digital Interactive media skill.</textarea>
+      <textarea id="bodyInput" rows="5" placeholder="Type or paste a paragraph of body text here"></textarea>
+
+      <button class="sample-link" id="sampleBtn">No text handy? Use sample text</button>
 
       <div class="actions">
-        <button class="btn btn-primary" id="nextBtn">Next</button>
+        <button class="btn btn-primary" id="nextBtn" disabled>Next</button>
       </div>
+      <p class="actions-hint" id="nextHint">Add a title and body text to continue</p>
     </div>
   </section>
 
@@ -552,6 +570,26 @@
     // "input" fires on every keystroke, so cards update while you type
     titleInput.addEventListener("input", updateText);
     bodyInput.addEventListener("input", updateText);
+
+    // Next is only clickable when BOTH boxes have text.
+    // .trim() removes spaces, so a box with only spaces still counts as empty.
+    const nextBtn  = document.getElementById("nextBtn");
+    const nextHint = document.getElementById("nextHint");
+    function checkReady() {
+      const ready = titleInput.value.trim() !== "" && bodyInput.value.trim() !== "";
+      nextBtn.disabled = !ready;
+      nextHint.style.display = ready ? "none" : "block";
+    }
+    titleInput.addEventListener("input", checkReady);
+    bodyInput.addEventListener("input", checkReady);
+
+    // "Use sample text" fills both boxes with a neutral example
+    document.getElementById("sampleBtn").addEventListener("click", () => {
+      titleInput.value = "Design that feels effortless";
+      bodyInput.value = "Good typography is almost invisible. It guides the reader through ideas without asking for attention, letting the words do the work while the letterforms quietly set the mood of the page.";
+      updateText();
+      checkReady();
+    });
 
 
     // ---------- 4. ALIGNMENT BUTTONS ----------
